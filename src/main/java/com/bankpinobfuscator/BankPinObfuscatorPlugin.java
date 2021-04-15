@@ -6,11 +6,11 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
-import net.runelite.api.events.ClientTick;
 import net.runelite.api.events.GameStateChanged;
-import net.runelite.api.events.ScriptPostFired;
+import net.runelite.api.events.ScriptCallbackEvent;
+import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
-import net.runelite.api.widgets.WidgetInfo;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
@@ -26,7 +26,16 @@ public class BankPinObfuscatorPlugin extends Plugin
 	private Client client;
 
 	@Inject
+	private ClientThread clientThread;
+
+	@Inject
 	private BankPinObfuscatorConfig config;
+
+	@Provides
+	BankPinObfuscatorConfig provideConfig(ConfigManager configManager)
+	{
+		return configManager.getConfig(BankPinObfuscatorConfig.class);
+	}
 
 	@Override
 	protected void startUp() throws Exception
@@ -38,7 +47,6 @@ public class BankPinObfuscatorPlugin extends Plugin
 	protected void shutDown() throws Exception
 	{
 		log.info("Example stopped!");
-		// SCRIPT IS 683, widget child dynamic 1 on 16, 18, 20, etc
 	}
 
 	@Subscribe
@@ -50,53 +58,46 @@ public class BankPinObfuscatorPlugin extends Plugin
 		}
 	}
 
-	@Provides
-	BankPinObfuscatorConfig provideConfig(ConfigManager configManager)
-	{
-		return configManager.getConfig(BankPinObfuscatorConfig.class);
-	}
-
-	private boolean checkPINButtons;
+	/*
+	https://github.com/runelite/runelite/blob/1fb85dfbb9e79ebd73792df97562dd4939f8e9bb/runelite-client/src/main/java/net/runelite/client/plugins/bank/BankPlugin.java
+	 */
 
 	@Subscribe
-	public void onScriptPostFired(ScriptPostFired event)
+	public void onScriptCallbackEvent(ScriptCallbackEvent event)
 	{
-		if (event.getScriptId() == 653)
-		{
-			checkPINButtons = true;
-		}
-	}
+		int[] intStack = client.getIntStack();
+		int intStackSize = client.getIntStackSize();
 
-	@Subscribe
-	public void onClientTick(ClientTick event)
-	{
-		if (checkPINButtons)
+		if (event.getEventName().equals("bankpinButtonSetup"))
 		{
-			Widget w = client.getWidget(WidgetInfo.BANK_PIN_CONTAINER.getGroupId(), 16);
-			if (w == null)
+			final int compId = intStack[intStackSize - 2];
+			final int buttonId = intStack[intStackSize - 1];
+			Widget button = client.getWidget(compId);
+
+			if (button == null)
 			{
 				return;
 			}
 
-			Widget w2 = w.getChild(1);
+			Widget buttonRect = button.getChild(0);
+			Widget buttonText = button.getChild(1);
 
-			if (w2 == null || w2.getText().equals(""))
-			{
-				return;
-			}
-
-			for (int i = 0; i < 10; i++)
-			{
-				Widget b = client.getWidget(WidgetInfo.BANK_PIN_CONTAINER.getGroupId(), 16 + i * 2);
-				if (b != null)
+			// Replace the timer on the button
+			int tickToSetText = client.getGameCycle() + 5;
+			buttonText.setOriginalX(buttonRect.getWidth() / 2 - (buttonText.getWidth() / 2));
+			buttonText.setOriginalY(buttonRect.getHeight() / 2 - (buttonText.getHeight() / 2));
+			buttonText.revalidate();
+			buttonText.setOnTimerListener((JavaScriptCallback) e ->
+				clientThread.invokeLater(() ->
 				{
-					Widget b2 = b.getChild(1);
-					b2.setOnTimerListener();
-					b2.setText("a " + b2.getText());
-				}
-			}
+					if (client.getGameCycle() >= tickToSetText)
+					{
+						// Remove listener
+						buttonText.setOnTimerListener((Object[]) null);
 
-			checkPINButtons = false;
+						buttonText.setText("a " + buttonId);
+					}
+				}));
 		}
 	}
 }
