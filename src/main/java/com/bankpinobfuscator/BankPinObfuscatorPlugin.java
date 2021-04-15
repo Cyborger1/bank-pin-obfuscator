@@ -27,7 +27,7 @@ import static net.runelite.client.RuneLite.RUNELITE_DIR;
 
 @Slf4j
 @PluginDescriptor(
-	name = "Example"
+	name = "Bank Pin Obfuscator"
 )
 public class BankPinObfuscatorPlugin extends Plugin
 {
@@ -77,7 +77,7 @@ public class BankPinObfuscatorPlugin extends Plugin
 			final int compId = intStack[intStackSize - 2];
 			final int buttonId = intStack[intStackSize - 1];
 
-			// Since this is callback happens immediately after cc_setonop in the rs2asm,
+			// Since this callback happens immediately after cc_setonop in the rs2asm,
 			// it just so happens that the value immediately after the stack pointer is still
 			// the current PIN step identifier, or the third operand of the aforementioned cc_setonop...
 			// May god have mercy on my soul for this transgression.
