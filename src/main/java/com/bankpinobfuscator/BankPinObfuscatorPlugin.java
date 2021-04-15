@@ -164,11 +164,11 @@ public class BankPinObfuscatorPlugin extends Plugin
 			{
 				if (client.getGameCycle() >= tickToSetText)
 				{
-					String obj = MAPS[pinStep].get(buttonId);
+					String newText = MAPS[pinStep].get(buttonId);
 					int id = -1;
 					int quant = -1;
 
-					Matcher m = PATTERN.matcher(obj);
+					Matcher m = PATTERN.matcher(newText);
 					if (m.matches())
 					{
 						try
@@ -181,13 +181,13 @@ public class BankPinObfuscatorPlugin extends Plugin
 						}
 						catch (Exception exp)
 						{
-							log.debug("Invalid Item/Quant: '" + obj + "'.");
+							log.debug("Invalid Item/Quant: '" + newText + "'.");
 						}
 					}
 
 					// Remove listener
 					buttonText.setOnTimerListener((Object[]) null);
-					buttonText.setText(MAPS[pinStep].get(buttonId));
+					buttonText.setText(newText);
 
 					if (id > -1)
 					{
