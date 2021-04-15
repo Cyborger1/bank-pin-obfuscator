@@ -3,6 +3,8 @@ package com.bankpinobfuscator;
 import com.google.common.collect.ImmutableMap;
 import com.google.inject.Provides;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
@@ -76,8 +78,8 @@ public class BankPinObfuscatorPlugin extends Plugin
 				.put(5, "A5")
 				.put(6, "A6")
 				.put(7, "A7")
-				.put(8, "A8")
-				.put(9, "A9")
+				.put(8, "ITEM{10}")
+				.put(9, "ITEM{5318:10}")
 				.build(),
 			ImmutableMap.<Integer, String>builder()
 				.put(0, "B0")
@@ -117,6 +119,8 @@ public class BankPinObfuscatorPlugin extends Plugin
 				.build()
 		};
 
+	private Pattern PATTERN = Pattern.compile("ITEM\\{(\\d+)(?::(\\d+))?}");
+
 	@Subscribe
 	public void onScriptCallbackEvent(ScriptCallbackEvent event)
 	{
@@ -151,16 +155,55 @@ public class BankPinObfuscatorPlugin extends Plugin
 
 			// Replace the timer on the button
 			int tickToSetText = client.getGameCycle() + 5;
-			buttonText.setOriginalX(buttonRect.getWidth() / 2 - (buttonText.getWidth() / 2));
-			buttonText.setOriginalY(buttonRect.getHeight() / 2 - (buttonText.getHeight() / 2));
+			buttonText.setOriginalX(0);
+			buttonText.setXPositionMode(1);
+			buttonText.setOriginalY(0);
+			buttonText.setYPositionMode(1);
 			buttonText.revalidate();
 			buttonText.setOnTimerListener((JavaScriptCallback) e ->
 			{
 				if (client.getGameCycle() >= tickToSetText)
 				{
+					String obj = MAPS[pinStep].get(buttonId);
+					int id = -1;
+					int quant = -1;
+
+					Matcher m = PATTERN.matcher(obj);
+					if (m.matches())
+					{
+						try
+						{
+							id = Integer.parseInt(m.group(1));
+							if (m.group(2) != null)
+							{
+								quant = Integer.parseInt(m.group(2));
+							}
+						}
+						catch (Exception exp)
+						{
+							log.debug("Invalid Item/Quant: '" + obj + "'.");
+						}
+					}
+
 					// Remove listener
 					buttonText.setOnTimerListener((Object[]) null);
 					buttonText.setText(MAPS[pinStep].get(buttonId));
+
+					if (id > -1)
+					{
+						buttonText.setItemId(id);
+						buttonText.setItemQuantity(quant);
+						buttonText.setType(5);
+						buttonText.setOriginalWidth(36);
+						buttonText.setOriginalHeight(32);
+					}
+					else
+					{
+						buttonText.setType(4);
+						buttonText.setOriginalWidth(buttonRect.getWidth());
+						buttonText.setOriginalHeight(buttonRect.getHeight());
+					}
+					buttonText.revalidate();
 				}
 			});
 		}
