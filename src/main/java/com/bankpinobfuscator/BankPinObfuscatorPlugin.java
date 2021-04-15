@@ -1,6 +1,8 @@
 package com.bankpinobfuscator;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.inject.Provides;
+import java.util.Map;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
@@ -62,16 +64,81 @@ public class BankPinObfuscatorPlugin extends Plugin
 	https://github.com/runelite/runelite/blob/1fb85dfbb9e79ebd73792df97562dd4939f8e9bb/runelite-client/src/main/java/net/runelite/client/plugins/bank/BankPlugin.java
 	 */
 
+	// TEST MAP
+	private Map<Integer, String>[] MAPS =
+		new ImmutableMap[]{
+			ImmutableMap.<Integer, String>builder()
+				.put(0, "A0")
+				.put(1, "A1")
+				.put(2, "A2")
+				.put(3, "A3")
+				.put(4, "A4")
+				.put(5, "A5")
+				.put(6, "A6")
+				.put(7, "A7")
+				.put(8, "A8")
+				.put(9, "A9")
+				.build(),
+			ImmutableMap.<Integer, String>builder()
+				.put(0, "B0")
+				.put(1, "B1")
+				.put(2, "B2")
+				.put(3, "B3")
+				.put(4, "B4")
+				.put(5, "B5")
+				.put(6, "B6")
+				.put(7, "B7")
+				.put(8, "B8")
+				.put(9, "B9")
+				.build(),
+			ImmutableMap.<Integer, String>builder()
+				.put(0, "C0")
+				.put(1, "C1")
+				.put(2, "C2")
+				.put(3, "C3")
+				.put(4, "C4")
+				.put(5, "C5")
+				.put(6, "C6")
+				.put(7, "C7")
+				.put(8, "C8")
+				.put(9, "C9")
+				.build(),
+			ImmutableMap.<Integer, String>builder()
+				.put(0, "C0")
+				.put(1, "C1")
+				.put(2, "C2")
+				.put(3, "C3")
+				.put(4, "C4")
+				.put(5, "C5")
+				.put(6, "C6")
+				.put(7, "C7")
+				.put(8, "C8")
+				.put(9, "C9")
+				.build()
+		};
+
 	@Subscribe
 	public void onScriptCallbackEvent(ScriptCallbackEvent event)
 	{
-		int[] intStack = client.getIntStack();
-		int intStackSize = client.getIntStackSize();
-
 		if (event.getEventName().equals("bankpinButtonSetup"))
 		{
+			int[] intStack = client.getIntStack();
+			int intStackSize = client.getIntStackSize();
+
 			final int compId = intStack[intStackSize - 2];
 			final int buttonId = intStack[intStackSize - 1];
+
+			// Since this is callback happens immediately after cc_setonop in the rs2asm,
+			// it just so happens that the value immediately after the stack pointer is still
+			// the current PIN step identifier, or the third operand of the aforementioned cc_setonop...
+			// May god have mercy on my soul for this transgression.
+			final int pinStep = intStack[intStackSize];
+
+			if (pinStep < 0 || pinStep > 3)
+			{
+				return;
+			}
+
 			Widget button = client.getWidget(compId);
 
 			if (button == null)
@@ -88,16 +155,14 @@ public class BankPinObfuscatorPlugin extends Plugin
 			buttonText.setOriginalY(buttonRect.getHeight() / 2 - (buttonText.getHeight() / 2));
 			buttonText.revalidate();
 			buttonText.setOnTimerListener((JavaScriptCallback) e ->
-				clientThread.invokeLater(() ->
+			{
+				if (client.getGameCycle() >= tickToSetText)
 				{
-					if (client.getGameCycle() >= tickToSetText)
-					{
-						// Remove listener
-						buttonText.setOnTimerListener((Object[]) null);
-
-						buttonText.setText("a " + buttonId);
-					}
-				}));
+					// Remove listener
+					buttonText.setOnTimerListener((Object[]) null);
+					buttonText.setText(MAPS[pinStep].get(buttonId));
+				}
+			});
 		}
 	}
 }
