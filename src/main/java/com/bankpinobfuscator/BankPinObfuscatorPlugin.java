@@ -1,16 +1,20 @@
 package com.bankpinobfuscator;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.reflect.TypeToken;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.inject.Provides;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
-import net.runelite.api.GameState;
-import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
@@ -19,6 +23,7 @@ import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import static net.runelite.client.RuneLite.RUNELITE_DIR;
 
 @Slf4j
 @PluginDescriptor(
@@ -26,6 +31,10 @@ import net.runelite.client.plugins.PluginDescriptor;
 )
 public class BankPinObfuscatorPlugin extends Plugin
 {
+	private static Pattern PATTERN = Pattern.compile("ITEM\\{(\\d+)(?::(\\d+))?}");
+
+	private Map<Integer, String>[] pinMap;
+
 	@Inject
 	private Client client;
 
@@ -44,87 +53,23 @@ public class BankPinObfuscatorPlugin extends Plugin
 	@Override
 	protected void startUp() throws Exception
 	{
-		log.info("Example started!");
+		pinMap = getMapData();
+		if (pinMap == null)
+		{
+			pinMap = storeDefaultMapData(config.overwriteDefaultMapOnLaunch());
+		}
 	}
 
 	@Override
 	protected void shutDown() throws Exception
 	{
-		log.info("Example stopped!");
+		pinMap = null;
 	}
-
-	@Subscribe
-	public void onGameStateChanged(GameStateChanged gameStateChanged)
-	{
-		if (gameStateChanged.getGameState() == GameState.LOGGED_IN)
-		{
-			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Example says " + config.greeting(), null);
-		}
-	}
-
-	/*
-	https://github.com/runelite/runelite/blob/1fb85dfbb9e79ebd73792df97562dd4939f8e9bb/runelite-client/src/main/java/net/runelite/client/plugins/bank/BankPlugin.java
-	 */
-
-	// TEST MAP
-	private Map<Integer, String>[] MAPS =
-		new ImmutableMap[]{
-			ImmutableMap.<Integer, String>builder()
-				.put(0, "A0")
-				.put(1, "A1")
-				.put(2, "A2")
-				.put(3, "A3")
-				.put(4, "A4")
-				.put(5, "A5")
-				.put(6, "A6")
-				.put(7, "A7")
-				.put(8, "ITEM{10}")
-				.put(9, "ITEM{5318:10}")
-				.build(),
-			ImmutableMap.<Integer, String>builder()
-				.put(0, "B0")
-				.put(1, "B1")
-				.put(2, "B2")
-				.put(3, "B3")
-				.put(4, "B4")
-				.put(5, "B5")
-				.put(6, "B6")
-				.put(7, "B7")
-				.put(8, "B8")
-				.put(9, "B9")
-				.build(),
-			ImmutableMap.<Integer, String>builder()
-				.put(0, "C0")
-				.put(1, "C1")
-				.put(2, "C2")
-				.put(3, "C3")
-				.put(4, "C4")
-				.put(5, "C5")
-				.put(6, "C6")
-				.put(7, "C7")
-				.put(8, "C8")
-				.put(9, "C9")
-				.build(),
-			ImmutableMap.<Integer, String>builder()
-				.put(0, "C0")
-				.put(1, "C1")
-				.put(2, "C2")
-				.put(3, "C3")
-				.put(4, "C4")
-				.put(5, "C5")
-				.put(6, "C6")
-				.put(7, "C7")
-				.put(8, "C8")
-				.put(9, "C9")
-				.build()
-		};
-
-	private Pattern PATTERN = Pattern.compile("ITEM\\{(\\d+)(?::(\\d+))?}");
 
 	@Subscribe
 	public void onScriptCallbackEvent(ScriptCallbackEvent event)
 	{
-		if (event.getEventName().equals("bankpinButtonSetup"))
+		if (pinMap != null && event.getEventName().equals("bankpinButtonSetup"))
 		{
 			int[] intStack = client.getIntStack();
 			int intStackSize = client.getIntStackSize();
@@ -164,7 +109,12 @@ public class BankPinObfuscatorPlugin extends Plugin
 			{
 				if (client.getGameCycle() >= tickToSetText)
 				{
-					String newText = MAPS[pinStep].get(buttonId);
+					String newText = pinMap[pinStep].get(buttonId);
+					if (newText == null)
+					{
+						newText = "" + buttonId;
+					}
+
 					int id = -1;
 					int quant = -1;
 
@@ -207,5 +157,120 @@ public class BankPinObfuscatorPlugin extends Plugin
 				}
 			});
 		}
+	}
+
+	private Map<Integer, String>[] getMapData()
+	{
+		try
+		{
+			File mapFile = new File(RUNELITE_DIR + "/bank-pin-obfuscator/bank-pin-obfuscator-map.txt");
+
+			if (mapFile.exists())
+			{
+				Gson g = new Gson();
+				Map<Integer, String>[] map = g.fromJson(new FileReader(mapFile),
+					new TypeToken<HashMap<Integer, String>[]>()
+					{
+					}.getType());
+
+				// Verify map
+				if (map.length != 4)
+				{
+					return null;
+				}
+
+				return map;
+			}
+		}
+		catch (Exception e)
+		{
+			log.debug("Error saving map file.", e);
+		}
+
+		return null;
+	}
+
+	private Map<Integer, String>[] storeDefaultMapData(boolean overwrite)
+	{
+		try
+		{
+			File mapDir = new File(RUNELITE_DIR, "bank-pin-obfuscator");
+			mapDir.mkdir();
+
+			File mapFile = new File(RUNELITE_DIR + "/bank-pin-obfuscator/bank-pin-obfuscator-map.txt");
+
+			if (overwrite && mapFile.exists())
+			{
+				mapFile.delete();
+			}
+
+			if (mapFile.createNewFile())
+			{
+				Map<Integer, String>[] defaultMap = new ImmutableMap[]{
+					ImmutableMap.<Integer, String>builder()
+						.put(0, "A0")
+						.put(1, "A1")
+						.put(2, "A2")
+						.put(3, "A3")
+						.put(4, "A4")
+						.put(5, "A5")
+						.put(6, "A6")
+						.put(7, "A7")
+						.put(8, "A8")
+						.put(9, "A9")
+						.build(),
+					ImmutableMap.<Integer, String>builder()
+						.put(0, "B0")
+						.put(1, "B1")
+						.put(2, "B2")
+						.put(3, "B3")
+						.put(4, "B4")
+						.put(5, "B5")
+						.put(6, "B6")
+						.put(7, "B7")
+						.put(8, "B8")
+						.put(9, "B9")
+						.build(),
+					ImmutableMap.<Integer, String>builder()
+						.put(0, "C0")
+						.put(1, "C1")
+						.put(2, "C2")
+						.put(3, "C3")
+						.put(4, "C4")
+						.put(5, "C5")
+						.put(6, "C6")
+						.put(7, "C7")
+						.put(8, "C8")
+						.put(9, "C9")
+						.build(),
+					ImmutableMap.<Integer, String>builder()
+						.put(0, "D0")
+						.put(1, "D1")
+						.put(2, "D2")
+						.put(3, "D3")
+						.put(4, "D4")
+						.put(5, "D5")
+						.put(6, "D6")
+						.put(7, "D7")
+						.put(8, "D8")
+						.put(9, "D9")
+						.build()
+				};
+
+				GsonBuilder gb = new GsonBuilder().setPrettyPrinting();
+				Gson g = gb.create();
+				FileWriter f = new FileWriter(mapFile);
+				g.toJson(defaultMap, f);
+				f.close();
+
+				return defaultMap;
+			}
+		}
+		catch (Exception e)
+		{
+			log.debug("Error saving map file.", e);
+		}
+
+		return null;
 	}
 }

@@ -4,16 +4,16 @@ import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 
-@ConfigGroup("example")
+@ConfigGroup("bankpinobfuscator")
 public interface BankPinObfuscatorConfig extends Config
 {
 	@ConfigItem(
-		keyName = "greeting",
-		name = "Welcome Greeting",
-		description = "The message to show to the user when they login"
+		keyName = "overwriteDefaultMapOnLaunch",
+		name = "Overwrite Map File on Launch",
+		description = "If the map file fails to load, overwrites the default map on plugin launch."
 	)
-	default String greeting()
+	default boolean overwriteDefaultMapOnLaunch()
 	{
-		return "Hello";
+		return false;
 	}
 }
