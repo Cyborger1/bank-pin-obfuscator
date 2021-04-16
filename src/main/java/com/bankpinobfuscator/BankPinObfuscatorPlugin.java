@@ -8,6 +8,7 @@ import com.google.inject.Provides;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -174,9 +175,19 @@ public class BankPinObfuscatorPlugin extends Plugin
 					}.getType());
 
 				// Verify map
-				if (map.length != 4)
+				if (map.length == 0)
 				{
 					return null;
+				}
+				// Pad if not long enough
+				else if (map.length < 4)
+				{
+					int prevIndex = map.length - 1;
+					map = Arrays.copyOf(map, 4);
+					for (int i = prevIndex + 1; i < 4; i++)
+					{
+						map[i] = map[prevIndex];
+					}
 				}
 
 				return map;
@@ -184,7 +195,7 @@ public class BankPinObfuscatorPlugin extends Plugin
 		}
 		catch (Exception e)
 		{
-			log.debug("Error saving map file.", e);
+			log.debug("Error loading map file.", e);
 		}
 
 		return null;
